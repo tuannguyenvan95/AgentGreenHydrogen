@@ -1,5 +1,6 @@
 # ⚡ AgentGreenHydrogen (Autonomous Green Hydrogen Purity & Renewable Electrolysis Subsidy Escrow)
 
+[![Live dApp](https://img.shields.io/badge/Live%20dApp-agentgreenhydrogen.vercel.app-06B6D4?style=for-the-badge&logo=vercel)](https://agentgreenhydrogen.vercel.app)
 [![Network](https://img.shields.io/badge/Network-GenLayer%20StudioNet-06B6D4?style=for-the-badge)](https://studio.genlayer.com)
 [![Chain ID](https://img.shields.io/badge/Chain%20ID-61999%20(0xF22F)-10B981?style=for-the-badge)](https://studio.genlayer.com/api)
 [![Status](https://img.shields.io/badge/Status-Consensus%20Deployed-brightgreen?style=for-the-badge)]()
@@ -59,6 +60,7 @@ The intelligent contract is compiled, validated, and confirmed by validator cons
 | **Contract Address** | `0xb2e60946c7c54007B04A66300378f13702FcF150` |
 | **Deployment Transaction** | `0x9b961dd6fb00b3123406a1a9c10a8a861ce835cb6f494685770d8025b85ab953` |
 | **Consensus Receipt Status** | `5` (ACCEPTED / FINALIZED) |
+| **Live Production dApp** | [https://agentgreenhydrogen.vercel.app](https://agentgreenhydrogen.vercel.app) |
 | **Studio Explorer** | [https://studio.genlayer.com](https://studio.genlayer.com) |
 
 ---
