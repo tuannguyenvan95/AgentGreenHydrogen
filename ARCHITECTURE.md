@@ -95,3 +95,27 @@ The contract transitions across nine discrete states, preventing premature or er
 - **Styling:** TailwindCSS with Clean Industrial Teal & Graphite Palette
 - **Web3 Connector:** Direct GenLayer RPC (`https://studio.genlayer.com/api`) & MetaMask integration
 - **Real-Time Visualizer:** Gas chromatography absorption peak spectrum, hourly renewable attribution breakdown, and PEM fuel cell operating diagnostics.
+
+---
+
+## 👥 6. Role-Based Access Control (RBAC) & Permission Architecture
+
+The protocol enforces deterministic role boundaries on-chain:
+
+1. **Sponsor (Climate Fund / DAO):**
+   - Can call `create_subsidy_policy` with native GEN escrow.
+   - Disallowed from designating themselves as the electrolyzer plant (conflict of interest prevention).
+   - Can file `appeal_verdict` with 10% bonded challenge during the 24-block window.
+   - Can invoke `cancel_or_reclaim` once coverage duration concludes if no telemetry was submitted.
+2. **Electrolyzer Plant (Hydrogen Producer):**
+   - Strictly the only entity authorized to execute `submit_production_telemetry`.
+   - Authorized to appeal adverse verdicts during the 24-block (~72s) cooling-off period.
+   - Receives 100% or 50% subsidy releases upon certified adjudication.
+3. **Appellant (Dispute Initiator):**
+   - Any authorized stakeholder who stakes a 10% dispute bond with bound laboratory spectrometry data.
+   - Forfeits bond to counterparty if appeal is dismissed; receives full refund if upheld.
+4. **Protocol Owner / Admin:**
+   - Contract deployer providing fallback maintenance; cannot arbitrarily liquidate escrowed capital.
+5. **Independent AI Tribunal / GenLayer Consensus:**
+   - Multi-perspective consensus magistrate executing across validators without centralized human keys.
+

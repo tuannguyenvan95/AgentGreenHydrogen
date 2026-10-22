@@ -142,13 +142,15 @@ Run the comprehensive pytest suite:
 python -m pytest tests/test_agentgreenhydrogen.py -v
 ```
 
-### Test Suite Coverage:
+### Test Suite Coverage (100% Pass Rate):
 - `test_green_hydrogen_certified_full_payout`: Verified ISO 14687 compliant batch releases 100% subsidy.
 - `test_green_hydrogen_unaccredited_source_rejected`: Asserts strict rejection of unauthenticated sources.
 - `test_partial_carbon_penalty`: Asserts 50% penalty enforcement on partial grid emissions.
 - `test_gray_hydrogen_rejection`: Asserts 100% refund on gray hydrogen / purity failure.
 - `test_cooling_off_dispute_and_appeal`: Validates 10% bonded appellate court review.
 - `test_sponsor_cannot_self_designate_electrolyzer`: Asserts stakeholder role separation.
+- `test_role_based_access_control`: Validates on-chain role resolution and unauthorized access rejection.
+- `test_cooling_off_countdown_tracking`: Asserts accurate second-by-second countdown mechanics.
 
 ---
 

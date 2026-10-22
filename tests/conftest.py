@@ -450,6 +450,35 @@ class _MockContractInstance:
         self.claimable_balances[self.caller] = 0
         return _MockTxResult(True)
 
+    def get_user_role(self, args):
+        pid = str(args[0]).strip()
+        account = str(args[1]).strip().lower()
+        if pid not in self.policies:
+            if account == self.owner:
+                return _MockCallResult("OWNER")
+            return _MockCallResult("OBSERVER")
+        p = self.policies[pid]
+        if account == p["sponsor"]:
+            return _MockCallResult("SPONSOR")
+        if account == p["electrolyzer_plant"]:
+            return _MockCallResult("ELECTROLYZER_PLANT")
+        if account == p["dispute_initiator"] and account != ZERO_ADDRESS:
+            return _MockCallResult("APPELLANT")
+        if account == self.owner:
+            return _MockCallResult("OWNER")
+        return _MockCallResult("OBSERVER")
+
+    def get_remaining_cooling_off_seconds(self, args):
+        pid = str(args[0]).strip()
+        if pid not in self.policies:
+            return _MockCallResult(0)
+        p = self.policies[pid]
+        if p["status"] != STATUS_AWAITING_PAYOUT or p["audit_completed_time"] <= 0:
+            return _MockCallResult(0)
+        expiry = p["audit_completed_time"] + COOLING_OFF_SECONDS
+        rem = expiry - self.simulated_time
+        return _MockCallResult(max(0, rem))
+
     def get_policy(self, args):
         pid = str(args[0]).strip()
         if pid not in self.policies:

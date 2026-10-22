@@ -248,4 +248,90 @@ def test_sponsor_cannot_self_designate_electrolyzer(client):
             args=[str(sponsor), "SELF-PLANT-01", 9997, 2000, 6000],
             value=1000000000000000000
         )
-    assert "Sponsor cannot designate themselves" in str(exc_info.value)
+    assert "Sponsor" in str(exc_info.value)
+
+
+def test_role_based_access_control(client):
+    """Proves strict role enforcement across sponsor, plant, and unauthorized third parties."""
+    contract = client.deploy("contracts/contract.py")
+    sponsor = client.accounts[0]
+    plant = client.accounts[1]
+    intruder = client.accounts[2]
+
+    tx_create = contract.connect(sponsor).create_subsidy_policy(
+        args=[str(plant), "ROLE-CHECK-PLANT", 9997, 2000, 6000],
+        value=1000000000000000000
+    )
+    policy_id = str(tx_create.return_value)
+
+    # 1. Role verification view
+    role_sponsor = contract.get_user_role(args=[policy_id, str(sponsor)]).call()
+    role_plant = contract.get_user_role(args=[policy_id, str(plant)]).call()
+    role_intruder = contract.get_user_role(args=[policy_id, str(intruder)]).call()
+
+    assert role_sponsor == "SPONSOR"
+    assert role_plant == "ELECTROLYZER_PLANT"
+    assert role_intruder == "OBSERVER"
+
+    # 2. Intruder cannot submit telemetry
+    with pytest.raises(Exception) as exc_info:
+        contract.connect(intruder).submit_production_telemetry(
+            args=[policy_id, "https://tuvsud.com/api/h2.json"]
+        )
+    assert "Role Violation" in str(exc_info.value)
+
+    # 3. Intruder cannot reclaim
+    with pytest.raises(Exception) as exc_reclaim:
+        contract.connect(intruder).cancel_or_reclaim(args=[policy_id])
+    assert "Role Violation" in str(exc_reclaim.value)
+
+
+def test_cooling_off_countdown_tracking(client):
+    """Proves accurate remaining cooling-off seconds calculation."""
+    contract = client.deploy("contracts/contract.py")
+    sponsor = client.accounts[0]
+    plant = client.accounts[1]
+
+    tx_create = contract.connect(sponsor).create_subsidy_policy(
+        args=[str(plant), "COUNTDOWN-PLANT", 9997, 2000, 6000],
+        value=1000000000000000000
+    )
+    policy_id = str(tx_create.return_value)
+
+    cert_url = "https://tuvsud.com/api/report.json"
+    contract.connect(plant).submit_production_telemetry(args=[policy_id, cert_url])
+
+    client.provider.make_request(
+        method="sim_installMocks",
+        params={
+            "llm_mocks": {
+                ".*": json.dumps({
+                    "canary": "CANARY_AGENT_GREEN_HYDROGEN_V1",
+                    "verdict": "GREEN_HYDROGEN_CERTIFIED_FULL",
+                    "confidence": 95,
+                    "measured_purity_bps": 9998,
+                    "measured_carbon_intensity_g": 1100,
+                    "reason": "100% compliant."
+                })
+            },
+            "web_mocks": {
+                cert_url: {"status": 200, "body": '{"h2": 0.9998}'}
+            }
+        }
+    )
+
+    contract.connect(plant).adjudicate_hydrogen_quality(args=[policy_id])
+
+    # Initial cooling off should be 72 seconds
+    rem_initial = contract.get_remaining_cooling_off_seconds(args=[policy_id]).call()
+    assert rem_initial == 72
+
+    # Advance 30 seconds
+    contract.set_time(contract.simulated_time + 30)
+    rem_mid = contract.get_remaining_cooling_off_seconds(args=[policy_id]).call()
+    assert rem_mid == 42
+
+    # Advance beyond 72 seconds -> returns 0
+    contract.set_time(contract.simulated_time + 50)
+    rem_done = contract.get_remaining_cooling_off_seconds(args=[policy_id]).call()
+    assert rem_done == 0

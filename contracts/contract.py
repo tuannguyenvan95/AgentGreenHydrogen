@@ -16,12 +16,12 @@ DEFAULT_SUBSIDY_EXPIRY_SECONDS = bigint(86400 * 30)                   # 30 days 
 # Lifecycle Statuses
 STATUS_POLICY_OPEN = u8(0)           # Climate Fund deposited subsidy escrow, awaiting production telemetry
 STATUS_TELEMETRY_SUBMITTED = u8(1)   # Electrolyzer plant submitted gas chromatography and renewable certificates
-STATUS_AWAITING_PAYOUT = u8(2)       # AI Hydrogen Jury rendered verdict, cooling-off active
+STATUS_AWAITING_PAYOUT = u8(2)       # AI Hydrogen Jury rendered verdict, cooling-off challenge window active
 STATUS_SETTLED_CERTIFIED_FULL = u8(3)# ISO 14687 compliant green hydrogen confirmed, 100% subsidy released
-STATUS_SETTLED_PARTIAL = u8(4)       # Carbon intensity breach / minor grid mixing, 50% penalty
-STATUS_SETTLED_REJECTED = u8(5)      # Gray hydrogen detected / purity failure, 100% refunded to fund
-STATUS_DISPUTED = u8(6)              # Under appellate review with 10% staked bond
-STATUS_EXPIRED_RECLAIMED = u8(7)     # Policy expired with zero telemetry, reclaimed by fund
+STATUS_SETTLED_PARTIAL = u8(4)       # Carbon intensity breach / minor grid mixing, 50% penalty cut
+STATUS_SETTLED_REJECTED = u8(5)      # Gray hydrogen detected / purity failure, 100% refunded to climate fund
+STATUS_DISPUTED = u8(6)              # Under appellate review with 10% staked dispute bond
+STATUS_EXPIRED_RECLAIMED = u8(7)     # Policy expired with zero telemetry, reclaimed by sponsor fund
 STATUS_UNRESOLVED = u8(8)            # Telemetry fetch, parse, or canary failure (protected non-settling state)
 
 
@@ -136,6 +136,7 @@ class Contract(gl.Contract):
     """
     AgentGreenHydrogen: Autonomous Green Hydrogen Purity & Renewable Electrolysis Subsidy Escrow
     Target Network: GenLayer StudioNet (Chain ID: 61999)
+    Strictly On-Chain Consensus & Production Verification
     """
     policies: TreeMap[str, HydrogenPolicy]
     policy_ids: DynArray[str]
@@ -197,7 +198,7 @@ class Contract(gl.Contract):
             pass
         return bigint(1760000000)
 
-    # ── Public Write Methods ──────────────────────────────────────────
+    # ── Public Write Methods (Strict Role Enforcement) ────────────────
 
     @gl.public.write.payable
     def create_subsidy_policy(
@@ -208,7 +209,7 @@ class Contract(gl.Contract):
         max_carbon_intensity_g_co2: u32,
         duration_blocks: u32
     ) -> str:
-        """Climate fund deposits subsidy allocation for accredited hydrogen electrolysis."""
+        """Role: Climate Subsidy Fund deposits subsidy allocation for accredited hydrogen electrolysis."""
         self._ensure_owner()
         escrow = bigint(gl.message.value)
         if escrow <= bigint(0):
@@ -224,7 +225,7 @@ class Contract(gl.Contract):
 
         s_addr = _to_address(_get_sender())
         if _addr_str(s_addr) == _addr_str(p_addr):
-            raise ContractError("Sponsor cannot designate themselves as electrolyzer plant.")
+            raise ContractError("Role Violation: Sponsor fund cannot designate themselves as the electrolyzer plant.")
 
         dur_secs = bigint(int(duration_blocks) * 3 if int(duration_blocks) > 0 else int(DEFAULT_SUBSIDY_EXPIRY_SECONDS))
 
@@ -249,7 +250,7 @@ class Contract(gl.Contract):
             status=STATUS_POLICY_OPEN,
             verdict="PENDING",
             original_verdict="PENDING",
-            reason="Subsidy policy active. Monitored for ISO 14687 hydrogen purity and renewable energy attribution.",
+            reason="Subsidy escrow active. Monitored for ISO 14687 hydrogen purity and 100% renewable energy attribution.",
             confidence=u8(0),
             measured_purity_bps=u32(0),
             measured_carbon_intensity_g=u32(0),
@@ -271,7 +272,7 @@ class Contract(gl.Contract):
         policy_id: str,
         chromatography_feed_url: str
     ) -> None:
-        """Electrolyzer facility submits accredited gas chromatography and hourly renewable matching data."""
+        """Role: Electrolyzer facility submits accredited gas chromatography and hourly renewable matching data."""
         self._ensure_owner()
         pid = self._resolve_pid(policy_id)
         if pid not in self.policies:
@@ -283,11 +284,11 @@ class Contract(gl.Contract):
 
         sender = _get_sender()
         if _addr_str(sender) != _addr_str(p.electrolyzer_plant):
-            raise ContractError("Role Violation: Only registered electrolyzer plant can submit telemetry.")
+            raise ContractError("Role Violation: Only registered electrolyzer plant can submit production telemetry.")
 
         clean_url = str(chromatography_feed_url).strip()
         if not _is_accredited_hydrogen_auditor(clean_url):
-            raise ContractError("Telemetry unauthenticated: Must originate from an accredited testing agency (TÜV SÜD, DNV, Bureau Veritas, NREL).")
+            raise ContractError("Telemetry unauthenticated: Must originate from an accredited testing agency (TÜV SÜD, DNV, Bureau Veritas, NREL, CertifHy, Fraunhofer).")
 
         current_time = self._get_current_timestamp()
         if current_time > p.expires_at_time:
@@ -299,7 +300,10 @@ class Contract(gl.Contract):
 
     @gl.public.write
     def adjudicate_hydrogen_quality(self, policy_id: str) -> None:
-        """AI Clean Energy Jury evaluates hydrogen purity (ISO 14687) and lifecycle carbon intensity."""
+        """
+        AI Clean Energy Tribunal: Multi-Perspective Forensic & Environmental Audit
+        Ingests third-party laboratory telemetry and executes semantic consensus via gl.vm.run_nondet.
+        """
         self._ensure_owner()
         pid = self._resolve_pid(policy_id)
         if pid not in self.policies:
@@ -342,20 +346,22 @@ class Contract(gl.Contract):
 
             ev_hash = hashlib.sha256(raw_feed.encode("utf-8")).hexdigest()
 
-            prompt = f"""You are the Chief Industrial Chemist and Clean Hydrogen Standards Magistrate on GenLayer.
-Evaluate the gas chromatography and hourly renewable matching audit for facility: {facility}.
-MINIMUM REQUIRED PURITY: >= {target_purity} basis points (e.g. 9997 = 99.97% ISO 14687 fuel cell grade)
-MAXIMUM CARBON INTENSITY: <= {max_carbon} grams CO2e / kg H2
+            prompt = f"""You are the Chief Industrial Chemist & Clean Hydrogen Standards Tribunal on GenLayer.
+Evaluate third-party laboratory gas chromatography and hourly renewable matching data for facility: {facility}.
 
-AUDIT & SPECTROMETRY PAYLOAD:
+STANDARDS REQUIRED:
+- MINIMUM REQUIRED PURITY: >= {target_purity} basis points (e.g. 9997 = 99.97% ISO 14687:2019 Type I Grade D fuel cell grade)
+- MAXIMUM LIFECYCLE CARBON INTENSITY: <= {max_carbon} grams CO2e / kg H2 (EU RED III Clean Hydrogen Standard)
+
+AUDIT & SPECTROMETRY TELEMETRY PAYLOAD:
 <chromatography_audit_payload>
 {raw_feed[:4000]}
 </chromatography_audit_payload>
 
-EVALUATION RUBRIC:
-1. Extract measured hydrogen gas purity in basis points (e.g., 99.98% = 9998 bps).
-2. Extract lifecycle carbon intensity (grams CO2 equivalent per kg H2 produced).
-3. Decision Matrix:
+TRI-PERSPECTIVE AUDIT METHODOLOGY:
+1. FORENSIC ANALYTICAL CHEMIST: Extract measured hydrogen purity in basis points (e.g. 99.98% = 9998 bps). Check for fuel cell poisoning trace contaminants (CO, H2S).
+2. ENVIRONMENTAL & LCA AUDITOR: Extract lifecycle carbon intensity (grams CO2 equivalent per kg H2 produced) and hourly renewable power match ratio.
+3. REGULATORY STANDARDS MAGISTRATE:
    - Certified Green Hydrogen: Purity >= {target_purity} bps AND Carbon Intensity <= {max_carbon} g CO2e/kg:
      Output "GREEN_HYDROGEN_CERTIFIED_FULL" (100% subsidy released to producer).
    - Partial Carbon Penalty: Purity >= {target_purity} bps BUT Carbon Intensity between ({max_carbon} + 1) and ({max_carbon} * 2) g CO2e/kg (partial fossil grid mix):
@@ -465,7 +471,7 @@ Respond ONLY with valid JSON without markdown fences:
         dispute_reason: str,
         supplemental_audit_url: str
     ) -> None:
-        """Sponsor or Producer can appeal within 24 blocks (~72s) with a 10% staked bond."""
+        """Role: Sponsor or Plant can appeal within 24 blocks (~72s) with a 10% staked dispute bond."""
         self._ensure_owner()
         pid = self._resolve_pid(policy_id)
         if pid not in self.policies:
@@ -672,7 +678,7 @@ Respond ONLY with valid JSON:
 
     @gl.public.write
     def finalize_settlement(self, policy_id: str) -> None:
-        """Executes uncontested settlement strictly after 24 blocks (~72s) cooling-off window."""
+        """Role: Stakeholders or owner executes uncontested settlement strictly after cooling-off window."""
         self._ensure_owner()
         pid = self._resolve_pid(policy_id)
         if pid not in self.policies:
@@ -719,7 +725,7 @@ Respond ONLY with valid JSON:
 
     @gl.public.write
     def cancel_or_reclaim(self, policy_id: str) -> None:
-        """Sponsor reclaims escrow if policy expired without telemetry or stalled in unresolved state."""
+        """Role: Only sponsor fund can reclaim escrow if coverage expired without telemetry or stalled."""
         self._ensure_owner()
         pid = self._resolve_pid(policy_id)
         if pid not in self.policies:
@@ -727,7 +733,7 @@ Respond ONLY with valid JSON:
 
         p = self.policies[pid]
         if _addr_str(_get_sender()) != _addr_str(p.sponsor):
-            raise ContractError("Role Violation: Only sponsor can reclaim expired subsidy escrow.")
+            raise ContractError("Role Violation: Only sponsor fund can reclaim expired subsidy escrow.")
 
         current_time = self._get_current_timestamp()
         if p.status in (STATUS_POLICY_OPEN, STATUS_UNRESOLVED):
@@ -738,7 +744,7 @@ Respond ONLY with valid JSON:
 
         p.status = STATUS_EXPIRED_RECLAIMED
         p.verdict = "EXPIRED_CLEAN"
-        p.reason = "Policy duration completed without valid spectrometry telemetry. Escrow reclaimed by sponsor."
+        p.reason = "Policy duration completed without valid spectrometry telemetry. Escrow reclaimed by sponsor fund."
 
         escrow_val = p.escrow_amount
         p.escrow_amount = bigint(0)
@@ -747,7 +753,7 @@ Respond ONLY with valid JSON:
 
     @gl.public.write
     def claim_payout(self) -> None:
-        """Pull-payment safety withdrawal: Beneficiary claims safely buffered balances."""
+        """Role: Beneficiary claims safely buffered pull-payment balances."""
         self._ensure_owner()
         sender = _get_sender()
         s_str = _addr_str(sender)
@@ -795,11 +801,43 @@ Respond ONLY with valid JSON:
             "audit_completed_time": str(p.audit_completed_time),
             "supplemental_evidence_url": p.supplemental_evidence_url,
             "appeal_prior_verdict": p.appeal_prior_verdict,
-            "created_at_block": str(p.created_at_time),
-            "expires_at_block": str(p.expires_at_time),
-            "audit_completed_block": str(p.audit_completed_time),
         }
         return json.dumps(data)
+
+    @gl.public.view
+    def get_user_role(self, policy_id: str, account: Address) -> str:
+        """Determines user's role: SPONSOR, ELECTROLYZER_PLANT, APPELLANT, OWNER, or OBSERVER."""
+        pid = self._resolve_pid(policy_id)
+        acc_str = _addr_str(account)
+        if pid not in self.policies:
+            if acc_str == _addr_str(self.owner):
+                return "OWNER"
+            return "OBSERVER"
+
+        p = self.policies[pid]
+        if acc_str == _addr_str(p.sponsor):
+            return "SPONSOR"
+        if acc_str == _addr_str(p.electrolyzer_plant):
+            return "ELECTROLYZER_PLANT"
+        if acc_str == _addr_str(p.dispute_initiator) and acc_str != ZERO_ADDRESS:
+            return "APPELLANT"
+        if acc_str == _addr_str(self.owner):
+            return "OWNER"
+        return "OBSERVER"
+
+    @gl.public.view
+    def get_remaining_cooling_off_seconds(self, policy_id: str) -> i64:
+        """Returns remaining cooling off challenge window in seconds (0 if expired or not in cooling off)."""
+        pid = self._resolve_pid(policy_id)
+        if pid not in self.policies:
+            return i64(0)
+        p = self.policies[pid]
+        if p.status != STATUS_AWAITING_PAYOUT or p.audit_completed_time <= bigint(0):
+            return i64(0)
+        current_time = self._get_current_timestamp()
+        expiry = p.audit_completed_time + COOLING_OFF_SECONDS
+        remaining = int(expiry - current_time)
+        return i64(remaining if remaining > 0 else 0)
 
     @gl.public.view
     def get_policy_count(self) -> u64:

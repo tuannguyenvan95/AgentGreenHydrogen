@@ -227,6 +227,24 @@ export function encodeCalldata(method: string, args: any[]): `0x${string}` {
   return `0x${res.map((b) => b.toString(16).padStart(2, '0')).join('')}`;
 }
 
+export async function fetchUserRole(policyId: string, account: string): Promise<string> {
+  try {
+    const role = await readContract('get_user_role', [policyId, account]);
+    return String(role || 'OBSERVER');
+  } catch {
+    return 'OBSERVER';
+  }
+}
+
+export async function fetchRemainingCoolingOff(policyId: string): Promise<number> {
+  try {
+    const rem = await readContract('get_remaining_cooling_off_seconds', [policyId]);
+    return Number(rem || 0);
+  } catch {
+    return 0;
+  }
+}
+
 export async function readContract(
   method: string,
   args: any[] = [],
