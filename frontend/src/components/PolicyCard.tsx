@@ -45,6 +45,7 @@ interface PolicyCardProps {
   onOpenAppeal: (policy: HydrogenPolicyData) => void;
   onAdjudicate: (policyId: string) => Promise<void>;
   onAdjudicateAppeal: (policyId: string) => Promise<void>;
+  onResolveStaleAppeal?: (policyId: string) => Promise<void>;
   onFinalize: (policyId: string) => Promise<void>;
   onReclaim: (policyId: string) => Promise<void>;
   isProcessing: boolean;
@@ -58,6 +59,7 @@ export const PolicyCard: React.FC<PolicyCardProps> = ({
   onOpenAppeal,
   onAdjudicate,
   onAdjudicateAppeal,
+  onResolveStaleAppeal,
   onFinalize,
   onReclaim,
   isProcessing,
@@ -366,6 +368,21 @@ export const PolicyCard: React.FC<PolicyCardProps> = ({
             <span>Judge Appellate Review</span>
           </button>
         )}
+
+        {/* Status 6 or 8 with bond: Recover Stale / Unresolved Appeal */}
+        {(policy.status === STATUS_DISPUTED || (policy.status === STATUS_UNRESOLVED && policy.verdict?.startsWith('APPEAL_UNRESOLVED'))) &&
+          onResolveStaleAppeal &&
+          BigInt(policy.dispute_bond || '0') > 0n && (
+            <button
+              onClick={() => onResolveStaleAppeal(policy.policy_id)}
+              disabled={isProcessing}
+              title="Safeguard: Recover timed-out appeal, refund dispute bond, and restore prior verdict"
+              className="px-3 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-heading font-semibold transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Recover Timed-Out Appeal</span>
+            </button>
+          )}
 
         {/* Reclaim expired button (Only Sponsor) */}
         {(policy.status === STATUS_POLICY_OPEN || policy.status === STATUS_UNRESOLVED) && (

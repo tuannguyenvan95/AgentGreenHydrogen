@@ -109,6 +109,9 @@ export interface HydrogenPolicyData {
   audit_completed_time: string;
   supplemental_evidence_url?: string;
   appeal_prior_verdict?: string;
+  auditor_cert_id?: string;
+  batch_id?: string;
+  dispute_filed_time?: string;
   created_at_block?: string;
   expires_at_block?: string;
   audit_completed_block?: string;
@@ -118,6 +121,7 @@ export interface HydrogenStats {
   total_policies: number;
   total_subsidies_locked: string;
   total_policies_settled: number;
+  total_pending_claims?: string;
   owner: string;
 }
 

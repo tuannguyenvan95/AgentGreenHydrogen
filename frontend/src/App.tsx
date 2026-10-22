@@ -267,6 +267,19 @@ export const App: React.FC = () => {
     }
   };
 
+  // 5b. Resolve Stale Appeal (Bounded Recovery Safeguard)
+  const handleResolveStaleAppeal = async (policyId: string) => {
+    setIsProcessing(true);
+    setErrorMessage(null);
+    try {
+      await sendTransaction('resolve_stale_appeal', [policyId]);
+    } catch (e: any) {
+      setErrorMessage(e.message || 'Stale appeal recovery failed.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   // 6. Finalize Settlement
   const handleFinalize = async (policyId: string) => {
     setIsProcessing(true);
@@ -468,6 +481,7 @@ export const App: React.FC = () => {
                   }}
                   onAdjudicate={handleAdjudicate}
                   onAdjudicateAppeal={handleAdjudicateAppeal}
+                  onResolveStaleAppeal={handleResolveStaleAppeal}
                   onFinalize={handleFinalize}
                   onReclaim={handleReclaim}
                   isProcessing={isProcessing}

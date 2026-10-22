@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 from genlayer_py import create_client, create_account, generate_private_key, studionet
 
-PK = os.environ.get("DEPLOYER_PRIVATE_KEY", "0x1b807b1df022a40f872596b11565e6b6856547dc66996bd3d5a85b376ea3a0ef").strip()
+PK = os.environ.get("DEPLOYER_PRIVATE_KEY", "").strip()
 
 
 def deploy():
@@ -20,11 +20,13 @@ def deploy():
     print("   Deploying AgentGreenHydrogen to GenLayer Studionet (Chain ID: 61999)   ", flush=True)
     print("=" * 75, flush=True)
 
-    try:
-        account = create_account(PK)
-    except Exception as e:
-        print(f"[!] Using generated key due to: {e}")
-        account = create_account(generate_private_key())
+    if not PK:
+        raise ValueError(
+            "CRITICAL: DEPLOYER_PRIVATE_KEY environment variable is missing!\n"
+            "Hardcoded private keys are strictly forbidden. Please export DEPLOYER_PRIVATE_KEY before running."
+        )
+
+    account = create_account(PK)
 
     client = create_client(chain=studionet, account=account)
     print(f"[+] Deployer Address: {account.address}", flush=True)
