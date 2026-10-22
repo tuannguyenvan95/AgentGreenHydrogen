@@ -57,7 +57,7 @@ The intelligent contract is compiled, validated, and confirmed by validator cons
 | **Target Network** | **GenLayer StudioNet** |
 | **Chain ID** | `61999` (Hex: `0xF22F`) |
 | **RPC Endpoint** | `https://studio.genlayer.com/api` |
-| **Contract Address** | `0xb2e60946c7c54007B04A66300378f13702FcF150` |
+| **Contract Address** | `0x5f07E27D1850457d622C1B544ABfa33b23a8426b` |
 | **Deployment Transaction** | `0x9b961dd6fb00b3123406a1a9c10a8a861ce835cb6f494685770d8025b85ab953` |
 | **Consensus Receipt Status** | `5` (ACCEPTED / FINALIZED) |
 | **Live Production dApp** | [https://agentgreenhydrogen.vercel.app](https://agentgreenhydrogen.vercel.app) |
