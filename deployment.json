@@ -3,9 +3,9 @@
   "chainId": 61999,
   "chainIdHex": "0xF22F",
   "rpcUrl": "https://studio.genlayer.com/api",
-  "contractAddress": "0x5f07E27D1850457d622C1B544ABfa33b23a8426b",
+  "contractAddress": "0x12D397De0303338dF58f9aFF12aaBEE420F99F36",
   "status": "5",
-  "deployedAt": "2026-10-22T08:11:00Z",
+  "deployedAt": "2026-10-22T17:30:00Z",
   "liveDappUrl": "https://agentgreenhydrogen.vercel.app",
   "githubRepo": "https://github.com/tuannguyenvan95/AgentGreenHydrogen"
 }
