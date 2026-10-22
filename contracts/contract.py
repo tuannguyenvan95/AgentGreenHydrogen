@@ -140,7 +140,6 @@ class Contract(gl.Contract):
     """
     AgentGreenHydrogen: Autonomous Green Hydrogen Purity & Renewable Electrolysis Subsidy Escrow
     Target Network: GenLayer StudioNet (Chain ID: 61999)
-    Strictly On-Chain Consensus & Verifiable Production Telemetry
     """
     policies: TreeMap[str, HydrogenPolicy]
     policy_ids: DynArray[str]
@@ -175,8 +174,9 @@ class Contract(gl.Contract):
 
     def _credit_payout(self, recipient: Address, amount: bigint) -> None:
         """
-        Credits beneficiary's Pull-Payment ledger balance with verified asynchronous delivery tracking.
-        Prevents silent balance extinguishment by recording credits prior to outbound delivery.
+        Pure Pull-Payment accounting:
+        Guarantees that funds are credited safely on-chain and cannot be silently extinguished
+        by asynchronous transfer failures. Beneficiaries withdraw at their convenience via claim_payout().
         """
         if amount <= bigint(0):
             return
@@ -184,19 +184,6 @@ class Contract(gl.Contract):
         curr = self.claimable_balances.get(rec_str, bigint(0))
         self.claimable_balances[rec_str] = curr + amount
         self.total_pending_claims = self.total_pending_claims + amount
-
-        # Attempt immediate push transfer if supported by runtime
-        try:
-            r_addr = _to_address(recipient)
-            gl.get_contract_at(r_addr).emit_transfer(value=u256(int(amount)))
-            # If emitted without throwing synchronously:
-            self.claimable_balances[rec_str] = curr
-            self.total_pending_claims = self.total_pending_claims - amount if self.total_pending_claims >= amount else bigint(0)
-            prev_w = self.total_withdrawn_ledger.get(rec_str, bigint(0))
-            self.total_withdrawn_ledger[rec_str] = prev_w + amount
-        except Exception:
-            # Transfer asynchronous or pending: credit safely recorded in claimable_balances ledger
-            pass
 
     def _get_current_timestamp(self) -> bigint:
         """Derives trusted Unix timestamp strictly from consensus context (gl.message_raw['datetime'])."""
@@ -217,7 +204,7 @@ class Contract(gl.Contract):
             pass
         return bigint(1760000000)
 
-    # ── Public Write Methods (Strict Role & Provenance Enforcement) ───
+    # ── Public Write Methods ──────────────────────────────────────────
 
     @gl.public.write.payable
     def create_subsidy_policy(
@@ -228,7 +215,6 @@ class Contract(gl.Contract):
         max_carbon_intensity_g_co2: u32,
         duration_blocks: u32
     ) -> str:
-        """Role: Climate Subsidy Fund deposits subsidy allocation for accredited hydrogen electrolysis."""
         self._ensure_owner()
         escrow = bigint(gl.message.value)
         if escrow <= bigint(0):
@@ -294,7 +280,6 @@ class Contract(gl.Contract):
         policy_id: str,
         chromatography_feed_url: str
     ) -> None:
-        """Role: Electrolyzer facility submits accredited gas chromatography and hourly renewable matching data."""
         self._ensure_owner()
         pid = self._resolve_pid(policy_id)
         if pid not in self.policies:
@@ -310,7 +295,7 @@ class Contract(gl.Contract):
 
         clean_url = str(chromatography_feed_url).strip()
         if not _is_accredited_hydrogen_auditor(clean_url):
-            raise ContractError("Telemetry unauthenticated: Must originate from an accredited testing agency (TÜV SÜD, DNV, Bureau Veritas, NREL, CertifHy, Fraunhofer, ISO).")
+            raise ContractError("Telemetry unauthenticated: Must originate from an accredited testing agency.")
 
         current_time = self._get_current_timestamp()
         if current_time > p.expires_at_time:
@@ -322,11 +307,6 @@ class Contract(gl.Contract):
 
     @gl.public.write
     def adjudicate_hydrogen_quality(self, policy_id: str) -> None:
-        """
-        AI Clean Energy Tribunal: Multi-Perspective Forensic & Environmental Audit
-        Ingests third-party laboratory telemetry, validates evidence integrity across validators,
-        verifies facility provenance, and strictly enforces on-chain mathematical thresholds.
-        """
         self._ensure_owner()
         pid = self._resolve_pid(policy_id)
         if pid not in self.policies:
@@ -490,20 +470,16 @@ Respond ONLY with valid JSON without markdown fences:
             if mine.get("canary") != CANARY_TOKEN:
                 return False
 
-            # 1. Independent validation of evidence hash agreement
             if str(mine.get("evidence_hash", "")) != str(leader.get("evidence_hash", "")):
                 return False
 
-            # 2. Independent validation of facility ID provenance
             if str(mine.get("facility_id", "")).strip() != str(leader.get("facility_id", "")).strip():
                 return False
 
-            # 3. Independent validation of decisive purity within strict tolerance (<= 5 bps)
             purity_diff = abs(int(mine.get("measured_purity_bps", 0)) - int(leader.get("measured_purity_bps", 0)))
             if purity_diff > 5:
                 return False
 
-            # 4. Independent validation of decisive carbon intensity within strict tolerance (<= 50g)
             carbon_diff = abs(int(mine.get("measured_carbon_intensity_g", 0)) - int(leader.get("measured_carbon_intensity_g", 0)))
             if carbon_diff > 50:
                 return False
@@ -535,7 +511,6 @@ Respond ONLY with valid JSON without markdown fences:
         p.auditor_cert_id = cert_extracted if cert_extracted else "CERT-VERIFIED-ISO14687"
         p.batch_id = batch_extracted if batch_extracted else "BATCH-ELECTROLYSIS-01"
 
-        # On-Chain Independent Verification of Provenance & Decisive Thresholds
         if facility_extracted and facility_extracted != p.facility_id:
             p.verdict = "GRAY_HYDROGEN_REJECTED"
             p.reason = f"Provenance Failure: Telemetry issued for '{facility_extracted}', but policy requires '{p.facility_id}'."
@@ -560,16 +535,12 @@ Respond ONLY with valid JSON without markdown fences:
         p.status = STATUS_AWAITING_PAYOUT
 
     @gl.public.write.payable
-    def file_dispute(
+    def appeal_verdict(
         self,
         policy_id: str,
-        counter_evidence_url: str,
-        dispute_reason: str
+        dispute_reason: str,
+        supplemental_audit_url: str
     ) -> None:
-        """
-        Role: Stakeholders can challenge quality verdict during cooling-off window.
-        Stakes 10% dispute bond. Records dispute_filed_time for bounded appellate timeout recovery.
-        """
         self._ensure_owner()
         pid = self._resolve_pid(policy_id)
         if pid not in self.policies:
@@ -577,23 +548,25 @@ Respond ONLY with valid JSON without markdown fences:
 
         p = self.policies[pid]
         if p.status != STATUS_AWAITING_PAYOUT:
-            raise ContractError("Disputes can only be filed during STATUS_AWAITING_PAYOUT cooling-off.")
+            raise ContractError("Can only appeal policies in AWAITING_PAYOUT status.")
+
+        sender = _get_sender()
+        if _addr_str(sender) != _addr_str(p.sponsor) and _addr_str(sender) != _addr_str(p.electrolyzer_plant):
+            raise ContractError("Role Violation: Only sponsor or electrolyzer plant can file an appeal.")
 
         current_time = self._get_current_timestamp()
         if current_time > (p.audit_completed_time + COOLING_OFF_SECONDS):
-            raise ContractError(f"Cooling-off window ({int(COOLING_OFF_SECONDS)}s) has elapsed. Settlement can be finalized.")
+            raise ContractError(f"Dispute cooling-off window ({int(COOLING_OFF_SECONDS)}s) has expired.")
 
-        sender = _get_sender()
-        sender_str = _addr_str(sender)
-        if sender_str != _addr_str(p.sponsor) and sender_str != _addr_str(p.electrolyzer_plant):
-            raise ContractError("Permission Denied: Only sponsor or electrolyzer plant can dispute.")
-
-        clean_url = str(counter_evidence_url).strip()
+        clean_url = str(supplemental_audit_url).strip()
         if not _is_accredited_hydrogen_auditor(clean_url):
-            raise ContractError("Counter-evidence unauthenticated: Must originate from an accredited testing agency.")
+            raise ContractError("Supplemental telemetry unauthenticated: Must originate from an accredited testing agency.")
+
+        required_bond = (p.escrow_amount * bigint(10)) // bigint(100)
+        if required_bond == bigint(0):
+            required_bond = bigint(1)
 
         staked = bigint(gl.message.value)
-        required_bond = p.escrow_amount // bigint(10)
         if staked < required_bond:
             raise ContractError(f"Must stake at least 10% dispute bond ({int(required_bond)} wei).")
 
@@ -611,18 +584,17 @@ Respond ONLY with valid JSON without markdown fences:
         self.total_subsidies_locked = self.total_subsidies_locked + staked
 
     @gl.public.write.payable
-    def appeal_verdict(
+    def file_dispute(
         self,
         policy_id: str,
-        dispute_reason: str,
-        counter_evidence_url: str
+        counter_evidence_url: str,
+        dispute_reason: str
     ) -> None:
-        """Alias for file_dispute allowing standard UI parameter order."""
-        return self.file_dispute(policy_id, counter_evidence_url, dispute_reason)
+        """Alias for appeal_verdict allowing alternative parameter order."""
+        return self.appeal_verdict(policy_id, dispute_reason, counter_evidence_url)
 
     @gl.public.write
     def adjudicate_appeal(self, policy_id: str) -> None:
-        """Supreme Clean Energy Appellate Court evaluates strictly against bound supplemental laboratory report."""
         self._ensure_owner()
         pid = self._resolve_pid(policy_id)
         if pid not in self.policies:
@@ -656,6 +628,8 @@ Respond ONLY with valid JSON without markdown fences:
                 return {
                     "canary": CANARY_TOKEN,
                     "verdict": "APPEAL_UNRESOLVED_FETCH_FAILED",
+                    "measured_purity_bps": 0,
+                    "measured_carbon_intensity_g": 0,
                     "reason": "Supplemental chemical inspection report unreachable.",
                     "evidence_hash": "0000000000000000000000000000000000000000000000000000000000000000",
                 }
@@ -678,7 +652,13 @@ DECISION CRITERIA:
 
 SECURITY CANARY: Echo "{CANARY_TOKEN}" in JSON.
 Respond ONLY with valid JSON:
-{{"canary": "{CANARY_TOKEN}", "verdict": "APPEAL_UPHELD_CERTIFIED"|"APPEAL_UPHELD_PARTIAL"|"APPEAL_UPHELD_REJECTED"|"APPEAL_DISMISSED", "reason": "<rationale under 200 chars>"}}"""
+{{
+  "canary": "{CANARY_TOKEN}",
+  "verdict": "APPEAL_UPHELD_CERTIFIED"|"APPEAL_UPHELD_PARTIAL"|"APPEAL_UPHELD_REJECTED"|"APPEAL_DISMISSED",
+  "measured_purity_bps": <integer>,
+  "measured_carbon_intensity_g": <integer>,
+  "reason": "<rationale under 200 chars>"
+}}"""
 
             raw_res = gl.nondet.exec_prompt(prompt, response_format="json")
             parsed = None
@@ -691,7 +671,14 @@ Respond ONLY with valid JSON:
                     pass
 
             if not parsed or not isinstance(parsed, dict) or str(parsed.get("canary", "")) != CANARY_TOKEN:
-                return {"canary": CANARY_TOKEN, "verdict": "APPEAL_UNRESOLVED_PARSE_FAILED", "reason": "Appellate parsing failure.", "evidence_hash": ev_hash}
+                return {
+                    "canary": CANARY_TOKEN,
+                    "verdict": "APPEAL_UNRESOLVED_PARSE_FAILED",
+                    "measured_purity_bps": 0,
+                    "measured_carbon_intensity_g": 0,
+                    "reason": "Appellate parsing failure.",
+                    "evidence_hash": ev_hash
+                }
 
             v_str = str(parsed.get("verdict", "")).upper().strip()
             if v_str not in {"APPEAL_UPHELD_CERTIFIED", "APPEAL_UPHELD_PARTIAL", "APPEAL_UPHELD_REJECTED", "APPEAL_DISMISSED"}:
@@ -700,6 +687,8 @@ Respond ONLY with valid JSON:
             return {
                 "canary": CANARY_TOKEN,
                 "verdict": v_str,
+                "measured_purity_bps": max(0, min(10000, int(parsed.get("measured_purity_bps", 0)))),
+                "measured_carbon_intensity_g": max(0, min(100000, int(parsed.get("measured_carbon_intensity_g", 0)))),
                 "reason": str(parsed.get("reason", "Appellate review completed."))[:200],
                 "evidence_hash": ev_hash,
             }
@@ -718,6 +707,10 @@ Respond ONLY with valid JSON:
                 return False
 
             if str(mine.get("evidence_hash", "")) != str(leader.get("evidence_hash", "")):
+                return False
+
+            purity_diff = abs(int(mine.get("measured_purity_bps", 0)) - int(leader.get("measured_purity_bps", 0)))
+            if purity_diff > 5:
                 return False
 
             return mine["verdict"] == leader["verdict"]
@@ -774,7 +767,6 @@ Respond ONLY with valid JSON:
                 self._credit_payout(counterparty, bond_val)
 
         else:
-            # APPEAL_DISMISSED: Preserve original verdict and forfeit bond to counterparty
             p.reason = f"[APPEAL DISMISSED] {app_reason}"
             self._credit_payout(counterparty, bond_val)
 
@@ -842,12 +834,11 @@ Respond ONLY with valid JSON:
         # 2. Restore policy to prior pre-appeal verdict and reset cooling-off window
         p.verdict = p.appeal_prior_verdict if p.appeal_prior_verdict and p.appeal_prior_verdict != "PENDING" else "GREEN_HYDROGEN_CERTIFIED_FULL"
         p.status = STATUS_AWAITING_PAYOUT
-        p.audit_completed_time = current_time  # Fresh cooling-off window
+        p.audit_completed_time = current_time
         p.reason = f"[APPEAL TIMEOUT RECOVERY]: Supplemental evidence timed out or unreachable. 100% dispute bond ({bond_val} wei) refunded to appellant. Policy restored to prior verdict '{p.verdict}'."
 
     @gl.public.write
     def finalize_settlement(self, policy_id: str) -> None:
-        """Role: Stakeholders or owner executes uncontested settlement strictly after cooling-off window."""
         self._ensure_owner()
         pid = self._resolve_pid(policy_id)
         if pid not in self.policies:
@@ -892,7 +883,6 @@ Respond ONLY with valid JSON:
 
     @gl.public.write
     def cancel_or_reclaim(self, policy_id: str) -> None:
-        """Role: Only sponsor fund can reclaim escrow if coverage expired without telemetry or stalled."""
         self._ensure_owner()
         pid = self._resolve_pid(policy_id)
         if pid not in self.policies:
@@ -942,7 +932,7 @@ Respond ONLY with valid JSON:
         prev_w = self.total_withdrawn_ledger.get(s_str, bigint(0))
         self.total_withdrawn_ledger[s_str] = prev_w + bal
 
-    # ── Read-only Views (Deterministic Consensus) ─────────────────────
+    # ── Read-only Views ───────────────────────────────────────────────
 
     @gl.public.view
     def get_policy(self, policy_id: str) -> str:
@@ -983,7 +973,6 @@ Respond ONLY with valid JSON:
 
     @gl.public.view
     def get_user_role(self, policy_id: str, account: Address) -> str:
-        """Determines user's role: SPONSOR, ELECTROLYZER_PLANT, APPELLANT, OWNER, or OBSERVER."""
         pid = self._resolve_pid(policy_id)
         acc_str = _addr_str(account)
         if pid not in self.policies:
@@ -1004,7 +993,6 @@ Respond ONLY with valid JSON:
 
     @gl.public.view
     def get_remaining_cooling_off_seconds(self, policy_id: str) -> i64:
-        """Returns remaining cooling off challenge window in seconds (0 if expired or not in cooling off)."""
         pid = self._resolve_pid(policy_id)
         if pid not in self.policies:
             return i64(0)

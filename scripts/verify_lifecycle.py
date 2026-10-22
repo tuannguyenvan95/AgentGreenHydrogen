@@ -113,6 +113,14 @@ def run_demonstration():
     print(f"    [OK] Total Distributed    : {int(claimable) + int(withdrawn)} wei")
     assert int(claimable) + int(withdrawn) == escrow_deposit
 
+    # Plant claims payout explicitly
+    contract.connect(plant).claim_payout()
+    claimable_after = contract.get_claimable_balance(args=[str(plant)]).call()
+    withdrawn_after = contract.get_total_withdrawn(args=[str(plant)]).call()
+    print(f"    [OK] Plant Claim Executed : Withdrawn {withdrawn_after} wei, Claimable {claimable_after} wei")
+    assert int(claimable_after) == 0
+    assert int(withdrawn_after) == escrow_deposit
+
     # 6. Appellate Stale Timeout Recovery Demonstration
     print(f"\n[7] Demonstrating Bounded Appellate Recovery Safeguard...")
     tx2 = contract.connect(sponsor).create_subsidy_policy(
