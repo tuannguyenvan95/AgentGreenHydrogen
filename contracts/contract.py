@@ -147,13 +147,12 @@ class Contract(gl.Contract):
     claimable_balances: TreeMap[str, bigint]
 
     def __init__(self, initial_owner: Address = Address(ZERO_ADDRESS)):
-        deployer = Address(ZERO_ADDRESS)
-        try:
-            deployer = _get_sender()
-        except Exception:
-            pass
-
-        target_owner = initial_owner if _addr_str(initial_owner) != ZERO_ADDRESS else deployer
+        target_owner = _to_address(initial_owner) if initial_owner is not None else Address(ZERO_ADDRESS)
+        if _addr_str(target_owner) == ZERO_ADDRESS:
+            try:
+                target_owner = _to_address(_get_sender())
+            except Exception:
+                pass
 
         self.owner = target_owner
         self.total_subsidies_locked = bigint(0)
@@ -165,7 +164,7 @@ class Contract(gl.Contract):
 
     def _ensure_owner(self) -> None:
         if _addr_str(self.owner) == ZERO_ADDRESS:
-            self.owner = _get_sender()
+            self.owner = _to_address(_get_sender())
 
     def _safe_transfer(self, recipient: Address, amount: bigint) -> None:
         """Transfers native GEN tokens with Pull-Payment fallback to eliminate lost funds."""

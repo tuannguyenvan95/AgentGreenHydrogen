@@ -335,3 +335,15 @@ def test_cooling_off_countdown_tracking(client):
     contract.set_time(contract.simulated_time + 50)
     rem_done = contract.get_remaining_cooling_off_seconds(args=[policy_id]).call()
     assert rem_done == 0
+
+
+def test_deploy_with_integer_address_from_studio(client):
+    """Proves that passing an integer address into __init__ (as done by GenLayer Studio runner) works flawlessly."""
+    # 63049619117024084276749704701518846041853730902 is decimal representation of 20-byte address
+    raw_int_addr = 63049619117024084276749704701518846041853730902
+    contract = client.deploy("contracts/contract.py", args=[raw_int_addr])
+    stats = json.loads(contract.get_stats().call())
+    assert stats["total_policies"] == 0
+    expected_hex = f"0x{raw_int_addr:040x}".lower()
+    assert stats["owner"].lower() == expected_hex
+
